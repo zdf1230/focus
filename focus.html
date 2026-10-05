@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Focus</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f1f1ee; --card: #fcfcfb; --raise: #ffffff;
+    --text: #0b0b0b; --text-2: #52514e; --text-3: #7a7974;
+    --line: #e4e3df; --track: #e9e8e4;
+    --accent: #2a78d6; --accent-soft: rgba(42,120,214,.10);
+    --series-1: #2a78d6; --series-2: #eb6834;
+    --good: #0ca30c; --critical: #d03b3b;
+    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --bg: #111110; --card: #1a1a19; --raise: #222220;
+      --text: #ffffff; --text-2: #c3c2b7; --text-3: #8e8d85;
+      --line: #2e2d2b; --track: #2a2a28;
+      --accent: #3987e5; --accent-soft: rgba(57,135,229,.16);
+      --series-1: #3987e5; --series-2: #d95926;
+      --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #111110; --card: #1a1a19; --raise: #222220;
+    --text: #ffffff; --text-2: #c3c2b7; --text-3: #8e8d85;
+    --line: #2e2d2b; --track: #2a2a28;
+    --accent: #3987e5; --accent-soft: rgba(57,135,229,.16);
+    --series-1: #3987e5; --series-2: #d95926;
+    --shadow: none;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font: 15px/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+  button, input { font: inherit; color: inherit; }
+  .num { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--text-2); }
+  .faint { color: var(--text-3); }
+  svg.i { width: 18px; height: 18px; flex: none; }
+
+  /* ---------- top bar ---------- */
+  .top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  .top-in { max-width: 1120px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; letter-spacing: -.01em; }
+  .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .tabs { display: flex; gap: 2px; background: var(--track); padding: 3px; border-radius: 10px; }
+  .tabs button { border: 0; background: none; padding: 5px 14px; border-radius: 8px; cursor: pointer; color: var(--text-2); font-weight: 500; font-size: 14px; }
+  .tabs button.on { background: var(--card); color: var(--text); box-shadow: var(--shadow); }
+  .spacer { flex: 1; }
+  .date { color: var(--text-2); font-size: 14px; }
+
+  .icon-btn { border: 0; background: none; width: 34px; height: 34px; border-radius: 8px; display: inline-grid; place-items: center; cursor: pointer; color: var(--text-2); }
+  .icon-btn:hover { background: var(--track); color: var(--text); }
+  .menu { position: relative; }
+  .menu-pop { position: absolute; right: 0; top: 40px; background: var(--raise); border: 1px solid var(--line); border-radius: 10px; padding: 6px; min-width: 210px; box-shadow: 0 8px 30px rgba(0,0,0,.12); display: none; }
+  .menu-pop.open { display: block; }
+  .menu-pop button { display: flex; width: 100%; gap: 10px; align-items: center; border: 0; background: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; text-align: left; font-size: 14px; }
+  .menu-pop button:hover { background: var(--track); }
+  .menu-pop hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
+
+  /* ---------- layout ---------- */
+  main { max-width: 1120px; margin: 0 auto; padding: 24px 20px 80px; }
+  .grid { display: grid; grid-template-columns: 400px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+  .pad { padding: 20px; }
+  h2 { font-size: 15px; font-weight: 600; margin: 0; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+
+  /* ---------- focus panel ---------- */
+  .focus-card { position: sticky; top: 80px; text-align: center; padding: 28px 24px 24px; }
+  .kicker { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+  .focus-title { font-size: 19px; font-weight: 600; margin: 6px 0 0; min-height: 28px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ring-wrap { position: relative; width: 260px; height: 260px; margin: 18px auto 20px; }
+  .ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring-track { stroke: var(--track); }
+  .ring-fg { stroke: var(--accent); transition: stroke-dashoffset .6s ease, stroke .3s; }
+  .ring-fg.over { stroke: var(--critical); }
+  .ring-fg.done { stroke: var(--good); }
+  .ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ring-time { font-size: 48px; font-weight: 600; letter-spacing: -.02em; line-height: 1; }
+  .ring-sub { margin-top: 8px; font-size: 14px; color: var(--text-2); }
+  .ring-sub.over { color: var(--critical); font-weight: 500; }
+  .running .ring-wrap::after { content: ""; position: absolute; inset: 14px; border-radius: 50%; box-shadow: 0 0 40px var(--accent-soft); animation: breathe 4s ease-in-out infinite; pointer-events: none; }
+  @keyframes breathe { 50% { opacity: .2; } }
+  @media (prefers-reduced-motion: reduce) { .running .ring-wrap::after { animation: none; } .ring-fg { transition: none; } }
+
+  .actions { display: flex; gap: 10px; justify-content: center; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--card); padding: 9px 16px; border-radius: 10px; cursor: pointer; font-weight: 500; font-size: 14px; }
+  .btn:hover { border-color: var(--text-3); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.lg { padding: 11px 22px; font-size: 15px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); margin: 24px -24px -24px; }
+  .stat { padding: 14px 8px; }
+  .stat + .stat { border-left: 1px solid var(--line); }
+  .stat .v { font-size: 20px; font-weight: 600; }
+  .stat .l { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+  .hint { margin-top: 14px; font-size: 12px; color: var(--text-3); }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; background: var(--card); color: var(--text-2); }
+
+  /* ---------- add form ---------- */
+  .add { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); }
+  .add-row { display: flex; gap: 8px; }
+  .add input[type=text] { flex: 1; border: 0; background: none; outline: none; font-size: 15px; padding: 4px 2px; }
+  .add input[type=text]::placeholder { color: var(--text-3); }
+  .chips { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .chip { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 3px 11px; font-size: 13px; cursor: pointer; color: var(--text-2); }
+  .chip:hover { border-color: var(--text-3); }
+  .chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .chip-custom::-webkit-inner-spin-button, .chip-custom::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .chip-custom { -moz-appearance: textfield; text-align: center; width: 64px; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 3px 10px; font-size: 13px; }
+
+  /* ---------- tasks ---------- */
+  .tasks { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .task { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); transition: border-color .15s, box-shadow .15s; }
+  .task:hover { border-color: var(--text-3); }
+  .task.running { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .task .body { flex: 1; min-width: 0; }
+  .task .title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
+  .task .meta { font-size: 13px; color: var(--text-2); margin-top: 2px; display: flex; gap: 6px; align-items: center; }
+  .task .meta .over { color: var(--critical); font-weight: 500; }
+  .est-btn { border: 0; background: none; padding: 0; cursor: pointer; color: inherit; text-decoration: underline dotted var(--text-3); text-underline-offset: 3px; }
+  .bar { height: 4px; background: var(--track); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+  .bar > div { height: 100%; background: var(--accent); border-radius: 2px; transition: width .6s ease; }
+  .bar.over > div { background: var(--critical); }
+  .bar.done > div { background: var(--good); }
+  .task.done .title { color: var(--text-3); text-decoration: line-through; }
+  .task.done { background: transparent; }
+
+  .check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--text-3); background: none; cursor: pointer; display: grid; place-items: center; padding: 0; flex: none; color: transparent; }
+  .check:hover { border-color: var(--good); color: var(--good); }
+  .check svg { width: 13px; height: 13px; }
+  .task.done .check { background: var(--good); border-color: var(--good); color: #fff; }
+
+  .play { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); display: grid; place-items: center; cursor: pointer; flex: none; color: var(--accent); }
+  .play:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .task.running .play { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .task .del { opacity: 0; }
+  .task:hover .del, .task .del:focus-visible { opacity: 1; }
+  .task .del:hover { color: var(--critical); }
+
+  .empty { text-align: center; padding: 36px 20px; color: var(--text-2); }
+  .empty .big { font-size: 34px; margin-bottom: 6px; }
+  .banner { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); font-size: 14px; }
+  .group-label { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); margin: 18px 0 2px; }
+
+  /* ---------- history ---------- */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 800px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { padding: 16px 18px; }
+  .kpi .l { font-size: 13px; color: var(--text-2); }
+  .kpi .v { font-size: 26px; font-weight: 600; margin-top: 4px; letter-spacing: -.01em; }
+  .kpi .s { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+
+  .chart-card { margin-top: 16px; padding: 20px; position: relative; }
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--text-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .chart svg { width: 100%; height: auto; display: block; margin-top: 10px; }
+  .chart .grid-line { stroke: var(--line); stroke-width: 1; }
+  .chart .axis-text { fill: var(--text-3); font-size: 11px; }
+  .chart .val { fill: var(--text-2); font-size: 11px; font-weight: 500; }
+  .chart .hit { fill: transparent; cursor: default; }
+  .chart .hit:hover { fill: var(--accent-soft); }
+  .tip { position: absolute; pointer-events: none; background: var(--raise); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.12); display: none; white-space: nowrap; z-index: 2; }
+  .tip b { display: block; margin-bottom: 4px; }
+  .tip .r { display: flex; gap: 14px; justify-content: space-between; color: var(--text-2); }
+  .tip .r span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+  .tip i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+  .days { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+  details.day { padding: 0; overflow: hidden; }
+  details.day summary { list-style: none; cursor: pointer; padding: 14px 18px; display: flex; align-items: center; gap: 14px; }
+  details.day summary::-webkit-details-marker { display: none; }
+  details.day summary .chev { transition: transform .2s; color: var(--text-3); }
+  details.day[open] summary .chev { transform: rotate(90deg); }
+  details.day .d-date { font-weight: 600; min-width: 120px; }
+  details.day .d-bar { flex: 1; max-width: 220px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td, th { padding: 9px 18px; border-top: 1px solid var(--line); text-align: left; }
+  th { color: var(--text-3); font-weight: 500; font-size: 12px; }
+  td.n, th.n { text-align: right; }
+  .pill { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--track); color: var(--text-2); }
+  .pill.good { color: var(--good); }
+
+  /* ---------- zen (full-screen focus) ---------- */
+  .zen { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: none; flex-direction: column; align-items: center; justify-content: center; }
+  .zen.open { display: flex; }
+  .zen .ring-wrap { width: min(70vmin, 460px); height: min(70vmin, 460px); }
+  .zen .ring-time { font-size: min(13vmin, 92px); }
+  .zen .focus-title { font-size: 24px; max-width: 80vw; }
+  .zen .close { position: absolute; top: 18px; right: 18px; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: .25s; pointer-events: none; z-index: 30; }
+  .toast.show { opacity: 1; transform: translateX(-50%); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect fill="currentColor" x="6" y="5" width="4" height="14" rx="1.2"/><rect fill="currentColor" x="14" y="5" width="4" height="14" rx="1.2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle fill="currentColor" cx="5" cy="12" r="1.8"/><circle fill="currentColor" cx="12" cy="12" r="1.8"/><circle fill="currentColor" cx="19" cy="12" r="1.8"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+</svg>
+
+<div class="top">
+  <div class="top-in">
+    <div class="brand"><span class="dot"></span>Focus</div>
+    <div class="tabs" role="tablist">
+      <button class="on" data-tab="today">Today</button>
+      <button data-tab="history">History</button>
+    </div>
+    <div class="spacer"></div>
+    <span class="date" id="today"></span>
+    <button class="icon-btn" id="themeBtn" title="Toggle dark mode"><svg class="i"><use href="#i-moon"/></svg></button>
+    <div class="menu">
+      <button class="icon-btn" id="menuBtn" title="More"><svg class="i"><use href="#i-more"/></svg></button>
+      <div class="menu-pop" id="menuPop">
+        <button id="notifyBtn">🔔 <span>Enable notifications</span></button>
+        <hr>
+        <button id="exportBtn">⬇️ Export data (backup)</button>
+        <button id="importBtn">⬆️ Import data</button>
+      </div>
+    </div>
+    <input type="file" id="importFile" accept=".json" hidden>
+  </div>
+</div>
+
+<main>
+  <!-- ================= TODAY ================= -->
+  <section id="view-today">
+    <div class="grid">
+      <div class="card focus-card" id="focusCard"></div>
+
+      <div class="card pad">
+        <div class="section-head">
+          <h2>Today's plan</h2>
+          <span class="faint num" id="planMeta"></span>
+        </div>
+        <form class="add" id="addForm" autocomplete="off">
+          <div class="add-row">
+            <input type="text" id="newTitle" placeholder="Add a task — what do you need to do today?" maxlength="140">
+            <button class="btn primary" type="submit">Add</button>
+          </div>
+          <div class="chips" id="chips">
+            <span class="faint" style="font-size:13px;margin-right:2px">Estimate</span>
+            <button type="button" class="chip" data-min="15">15m</button>
+            <button type="button" class="chip on" data-min="30">30m</button>
+            <button type="button" class="chip" data-min="45">45m</button>
+            <button type="button" class="chip" data-min="60">1h</button>
+            <button type="button" class="chip" data-min="90">1.5h</button>
+            <button type="button" class="chip" data-min="120">2h</button>
+            <input type="number" class="chip-custom" id="customMin" min="1" placeholder="min" title="Custom minutes">
+          </div>
+        </form>
+        <div id="carry"></div>
+        <div class="tasks" id="tasks"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= HISTORY ================= -->
+  <section id="view-history" hidden>
+    <div class="kpis" id="kpis"></div>
+    <div class="card chart-card">
+      <div class="section-head">
+        <h2>Last 7 days</h2>
+        <div class="legend">
+          <span><i style="background:var(--series-1)"></i>Spent</span>
+          <span><i style="background:var(--series-2)"></i>Planned</span>
+        </div>
+      </div>
+      <div class="chart" id="chart"></div>
+      <div class="tip" id="tip"></div>
+    </div>
+    <div class="days" id="days"></div>
+  </section>
+</main>
+
+<div class="zen" id="zen">
+  <button class="icon-btn close" data-act="zen-close" title="Exit (Esc)"><svg class="i"><use href="#i-x"/></svg></button>
+  <div id="zenBody" style="text-align:center"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const KEY = 'focus-app-v1';
+const THEME_KEY = 'focus-app-theme';
+const AWAY_PROMPT_MS = 10 * 60 * 1000; // ask if app was closed >10 min while a timer ran
+const RING_R = 116, RING_C = 2 * Math.PI * RING_R;
+
+// ---------- state ----------
+// task: { id, title, estMin, date, done, doneAt, sessions: [{s, e}], alerted, carried }
+// running: { taskId, s } | null ; lastTaskId: last task that was started
+let state = load();
+let view = 'today';
+let selEst = 30;
+
+function load() {
+  try { return JSON.parse(localStorage.getItem(KEY)) || fresh(); } catch { return fresh(); }
+}
+function fresh() { return { tasks: [], running: null, lastSeen: Date.now() }; }
+function save() { state.lastSeen = Date.now(); localStorage.setItem(KEY, JSON.stringify(state)); }
+
+// ---------- helpers ----------
+const $ = id => document.getElementById(id);
+const dayKey = (t = Date.now()) => {
+  const d = new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const uid = () => Math.random().toString(36).slice(2, 10);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const icon = (name, cls = 'i') => `<svg class="${cls}"><use href="#i-${name}"/></svg>`;
+const byId = id => state.tasks.find(t => t.id === id);
+const isRunning = id => state.running && state.running.taskId === id;
+const runningTask = () => state.running && byId(state.running.taskId);
+
+function spentMs(task) {
+  let ms = task.sessions.reduce((a, x) => a + (x.e - x.s), 0);
+  if (isRunning(task.id)) ms += Date.now() - state.running.s;
+  return ms;
+}
+function fmtShort(ms) {
+  const m = Math.round(ms / 60000);
+  if (m < 60) return `${m}m`;
+  return m % 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m / 60}h`;
+}
+function fmtClock(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, sec = s % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
+}
+function todays() { return state.tasks.filter(t => t.date === dayKey()); }
+function daySpentMs(key) {
+  // time actually spent on a calendar day, across all tasks (sessions clipped to that day)
+  const s0 = new Date(key + 'T00:00').getTime(), s1 = s0 + 86400000;
+  const clip = (s, e) => Math.max(0, Math.min(e, s1) - Math.max(s, s0));
+  let ms = 0;
+  for (const t of state.tasks) for (const x of t.sessions) ms += clip(x.s, x.e);
+  if (state.running) ms += clip(state.running.s, Date.now());
+  return ms;
+}
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ---------- actions ----------
+function stopRunning(at = Date.now()) {
+  if (!state.running) return;
+  const t = byId(state.running.taskId);
+  if (t && at > state.running.s) t.sessions.push({ s: state.running.s, e: at });
+  state.running = null;
+}
+const actions = {
+  start(id) {
+    stopRunning();
+    const t = byId(id);
+    if (t.done) t.done = false;
+    state.running = { taskId: id, s: Date.now() };
+    state.lastTaskId = id;
+  },
+  pause() { stopRunning(); },
+  toggle() {
+    if (state.running) return stopRunning();
+    const next = byId(state.lastTaskId);
+    const pick = next && !next.done && next.date === dayKey() ? next : todays().find(t => !t.done);
+    if (pick) actions.start(pick.id);
+  },
+  done(id) {
+    const t = byId(id);
+    if (isRunning(id)) stopRunning();
+    t.done = !t.done;
+    t.doneAt = t.done ? Date.now() : null;
+    if (t.done) { toast(`Nice — “${t.title}” done in ${fmtShort(spentMs(t))}`); closeZen(); }
+  },
+  del(id) {
+    const t = byId(id);
+    if (!confirm(`Delete “${t.title}” and its tracked time?`)) return false;
+    if (isRunning(id)) state.running = null;
+    state.tasks = state.tasks.filter(x => x.id !== id);
+  },
+  est(id) {
+    const t = byId(id);
+    const v = prompt(`Estimated minutes for “${t.title}”:`, t.estMin);
+    const n = parseInt(v, 10);
+    if (!(n > 0)) return false;
+    t.estMin = n; t.alerted = spentMs(t) >= n * 60000;
+  },
+  rename(id) {
+    const t = byId(id);
+    const v = prompt('Rename task:', t.title);
+    if (!v || !v.trim()) return false;
+    t.title = v.trim();
+  },
+  carry() {
+    const today = dayKey();
+    const left = state.tasks.filter(t => !t.done && !t.carried && t.date < today);
+    left.forEach(t => {
+      state.tasks.push({ id: uid(), title: t.title, estMin: t.estMin, date: today, done: false, sessions: [], carriedFrom: t.id });
+      t.carried = true;
+    });
+    toast(`Moved ${left.length} task(s) to today`);
+  },
+  dismissCarry() {
+    state.tasks.filter(t => !t.done && t.date < dayKey()).forEach(t => t.carried = true);
+  },
+  zen() { openZen(); return false; },
+  'zen-close'() { closeZen(); return false; },
+};
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  e.preventDefault();
+  if (actions[b.dataset.act](b.dataset.id) === false) return;
+  save(); render();
+});
+document.addEventListener('dblclick', e => {
+  const t = e.target.closest('.task .title');
+  if (t) { actions.rename(t.dataset.id) !== false && (save(), render()); }
+});
+
+// add form + estimate chips
+$('chips').addEventListener('click', e => {
+  const c = e.target.closest('.chip');
+  if (!c) return;
+  selEst = +c.dataset.min; $('customMin').value = '';
+  paintChips();
+});
+$('customMin').addEventListener('input', e => {
+  const n = parseInt(e.target.value, 10);
+  if (n > 0) { selEst = n; paintChips(); }
+});
+function paintChips() {
+  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', +c.dataset.min === selEst && !$('customMin').value));
+}
+$('addForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const title = $('newTitle').value.trim();
+  if (!title) return $('newTitle').focus();
+  state.tasks.push({ id: uid(), title, estMin: selEst, date: dayKey(), done: false, sessions: [] });
+  $('newTitle').value = '';
+  save(); render();
+  $('newTitle').focus();
+});
+
+// tabs
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  view = b.dataset.tab;
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  $('view-today').hidden = view !== 'today';
+  $('view-history').hidden = view !== 'history';
+  render();
+});
+
+// menu, theme
+$('menuBtn').onclick = e => { e.stopPropagation(); $('menuPop').classList.toggle('open'); };
+document.addEventListener('click', e => { if (!e.target.closest('.menu')) $('menuPop').classList.remove('open'); });
+function applyTheme(t) { t ? document.documentElement.setAttribute('data-theme', t) : document.documentElement.removeAttribute('data-theme'); }
+applyTheme(localStorage.getItem(THEME_KEY));
+$('themeBtn').onclick = () => {
+  const dark = getComputedStyle(document.documentElement).colorScheme.includes('dark');
+  const t = dark ? 'light' : 'dark';
+  localStorage.setItem(THEME_KEY, t); applyTheme(t);
+};
+
+// keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea')) { if (e.key === 'Escape') e.target.blur(); return; }
+  if (e.key === ' ') { e.preventDefault(); actions.toggle(); save(); render(); }
+  else if (e.key === 'n') { e.preventDefault(); if (view !== 'today') document.querySelector('[data-tab=today]').click(); $('newTitle').focus(); }
+  else if (e.key === 'f') { state.running ? openZen() : toast('Start a task first'); }
+  else if (e.key === 'Escape') closeZen();
+});
+
+// ---------- render: today ----------
+function render() {
+  $('today').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  if (view === 'today') renderToday(); else renderHistory();
+  renderZen();
+  tick();
+}
+
+function ringSvg() {
+  return `<svg viewBox="0 0 260 260"><circle class="ring-track" cx="130" cy="130" r="${RING_R}" fill="none" stroke-width="12"/>
+    <circle class="ring-fg" data-live="ring" cx="130" cy="130" r="${RING_R}" fill="none" stroke-width="12" stroke-linecap="round" stroke-dasharray="${RING_C}" stroke-dashoffset="${RING_C}"/></svg>`;
+}
+
+function focusHtml() {
+  const r = runningTask();
+  const list = todays();
+  if (r) {
+    return `
+      <div class="kicker">Focusing on</div>
+      <div class="focus-title" title="${esc(r.title)}">${esc(r.title)}</div>
+      <div class="ring-wrap">${ringSvg()}
+        <div class="ring-center"><div class="ring-time num" data-live="clock">0:00</div><div class="ring-sub num" data-live="sub"></div></div>
+      </div>
+      <div class="actions">
+        <button class="btn lg" data-act="pause">${icon('pause')}Pause</button>
+        <button class="btn lg primary" data-act="done" data-id="${r.id}">${icon('check')}Done</button>
+        <button class="icon-btn" data-act="zen" title="Full-screen focus (F)" style="width:44px;height:44px">${icon('expand')}</button>
+      </div>`;
+  }
+  const last = byId(state.lastTaskId);
+  const next = last && !last.done && last.date === dayKey() ? last : list.find(t => !t.done);
+  const allDone = list.length && list.every(t => t.done);
+  return `
+    <div class="kicker">${allDone ? 'All done' : 'Ready'}</div>
+    <div class="focus-title">${allDone ? 'You finished today’s plan 🎉' : next ? 'Up next: ' + esc(next.title) : 'Plan your day'}</div>
+    <div class="ring-wrap">${ringSvg()}
+      <div class="ring-center"><div class="ring-time num" data-live="clock">0m</div><div class="ring-sub num" data-live="sub"></div></div>
+    </div>
+    <div class="actions">
+      ${next ? `<button class="btn lg primary" data-act="start" data-id="${next.id}">${icon('play')}${next.sessions.length ? 'Resume' : 'Start focus'}</button>`
+             : `<button class="btn lg" onclick="document.getElementById('newTitle').focus()">Add a task</button>`}
+    </div>`;
+}
+
+function renderToday() {
+  const list = todays();
+  const est = list.reduce((a, t) => a + t.estMin * 60000, 0);
+  $('focusCard').classList.toggle('running', !!state.running);
+  $('focusCard').innerHTML = focusHtml() + `
+    <div class="stats">
+      <div class="stat"><div class="v num">${fmtShort(est)}</div><div class="l">Planned</div></div>
+      <div class="stat"><div class="v num" data-live="daySpent">0m</div><div class="l">Focused</div></div>
+      <div class="stat"><div class="v num">${list.filter(t => t.done).length}/${list.length}</div><div class="l">Done</div></div>
+    </div>`;
+
+  const open = list.filter(t => !t.done), done = list.filter(t => t.done);
+  const remaining = open.reduce((a, t) => a + Math.max(0, t.estMin * 60000 - spentMs(t)), 0);
+  $('planMeta').textContent = list.length ? `${open.length} left · ~${fmtShort(remaining)} to go` : '';
+
+  const leftovers = state.tasks.filter(t => !t.done && !t.carried && t.date < dayKey());
+  $('carry').innerHTML = leftovers.length ? `
+    <div class="banner"><span style="flex:1">You have <b>${leftovers.length}</b> unfinished task${leftovers.length > 1 ? 's' : ''} from earlier days.</span>
+      <button class="btn" data-act="dismissCarry">Dismiss</button>
+      <button class="btn primary" data-act="carry">Move to today</button></div>` : '';
+
+  $('tasks').innerHTML = list.length
+    ? open.map(taskHtml).join('') + (done.length ? `<div class="group-label">Completed · ${done.length}</div>` + done.map(taskHtml).join('') : '')
+    : `<div class="empty"><div class="big">☀️</div><b>Nothing planned yet</b><div class="faint" style="margin-top:4px">Add what you need to do today and how long you think each takes.</div>
+       <div class="hint">Shortcuts: <kbd>N</kbd> new task · <kbd>Space</kbd> start/pause · <kbd>F</kbd> full-screen</div></div>`;
+}
+
+function taskHtml(t) {
+  const running = isRunning(t.id);
+  return `
+  <div class="task ${running ? 'running' : ''} ${t.done ? 'done' : ''}">
+    <button class="check" data-act="done" data-id="${t.id}" title="${t.done ? 'Mark not done' : 'Mark done'}">${icon('check')}</button>
+    <div class="body">
+      <div class="title" data-id="${t.id}" title="Double-click to rename">${esc(t.title)}</div>
+      <div class="meta num">
+        <span data-live="spent" data-id="${t.id}"></span><span class="faint">/</span>
+        <button class="est-btn" data-act="est" data-id="${t.id}" title="Change estimate">${fmtShort(t.estMin * 60000)}</button>
+        <span class="faint">·</span><span data-live="left" data-id="${t.id}"></span>
+      </div>
+      <div class="bar" data-live="barwrap" data-id="${t.id}"><div data-live="bar" data-id="${t.id}"></div></div>
+    </div>
+    ${t.done ? '' : `<button class="play" data-act="${running ? 'pause' : 'start'}" data-id="${t.id}" title="${running ? 'Pause' : 'Start'}">${icon(running ? 'pause' : 'play')}</button>`}
+    <button class="icon-btn del" data-act="del" data-id="${t.id}" title="Delete">${icon('trash')}</button>
+  </div>`;
+}
+
+// ---------- live updates (every second, no re-render) ----------
+function tick() {
+  const r = runningTask();
+  const list = todays();
+  document.querySelectorAll('[data-live]').forEach(el => {
+    const kind = el.dataset.live;
+    const t = el.dataset.id && byId(el.dataset.id);
+    const scope = el.closest('#zen') ? 'zen' : 'main';
+    if (kind === 'clock' || kind === 'sub' || kind === 'ring') {
+      let pct, clock, sub, cls = '';
+      if (r) {
+        const spent = spentMs(r), est = r.estMin * 60000;
+        pct = spent / est; clock = fmtClock(spent);
+        sub = spent > est ? `${fmtShort(spent - est)} over estimate` : `${fmtShort(est - spent)} left of ${fmtShort(est)}`;
+        if (spent > est) cls = 'over';
+      } else {
+        const est = list.reduce((a, t) => a + t.estMin * 60000, 0);
+        const spent = daySpentMs(dayKey());
+        pct = est ? spent / est : 0; clock = fmtShort(spent);
+        sub = est ? `focused of ${fmtShort(est)} planned` : 'focused today';
+        if (list.length && list.every(t => t.done)) cls = 'done';
+      }
+      if (kind === 'clock') el.textContent = clock;
+      if (kind === 'sub') { el.textContent = sub; el.className = 'ring-sub num ' + cls; }
+      if (kind === 'ring') {
+        el.setAttribute('stroke-dashoffset', RING_C * (1 - Math.min(1, pct)));
+        el.setAttribute('class', 'ring-fg ' + cls);
+      }
+    } else if (kind === 'daySpent') {
+      el.textContent = fmtShort(daySpentMs(dayKey()));
+    } else if (t) {
+      const spent = spentMs(t), est = t.estMin * 60000;
+      if (kind === 'spent') el.textContent = isRunning(t.id) ? fmtClock(spent) : fmtShort(spent);
+      if (kind === 'left') {
+        el.className = !t.done && spent > est ? 'over' : '';
+        el.textContent = t.done ? 'done' : spent > est ? `${fmtShort(spent - est)} over` : `${fmtShort(est - spent)} left`;
+      }
+      if (kind === 'bar') el.style.width = Math.min(100, spent / est * 100) + '%';
+      if (kind === 'barwrap') el.className = 'bar ' + (t.done ? 'done' : spent > est ? 'over' : '');
+    }
+  });
+  document.title = r ? `${fmtClock(spentMs(r))} · ${r.title}` : 'Focus';
+}
+
+// ---------- zen mode ----------
+function openZen() { if (!state.running) return; $('zen').classList.add('open'); renderZen(); tick(); }
+function closeZen() { $('zen').classList.remove('open'); }
+function renderZen() {
+  if (!$('zen').classList.contains('open')) return;
+  if (!state.running) return closeZen();
+  $('zenBody').innerHTML = focusHtml().replace(/<button class="icon-btn" data-act="zen"[\s\S]*?<\/button>/, '');
+  $('zenBody').classList.add('running');
+}
+
+// ---------- render: history ----------
+function lastDays(n) {
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - i); out.push(dayKey(d.getTime())); }
+  return out;
+}
+function dayLabel(k, opts = { weekday: 'short', month: 'short', day: 'numeric' }) { return new Date(k + 'T00:00').toLocaleDateString(undefined, opts); }
+
+function renderHistory() {
+  const keys = lastDays(7);
+  const rows = keys.map(k => {
+    const list = state.tasks.filter(t => t.date === k);
+    return { k, planned: list.reduce((a, t) => a + t.estMin * 60000, 0), spent: daySpentMs(k), done: list.filter(t => t.done).length, total: list.length };
+  });
+  const totalSpent = rows.reduce((a, r) => a + r.spent, 0);
+  const activeDays = rows.filter(r => r.spent > 0).length;
+  const doneTasks = state.tasks.filter(t => t.done && keys.includes(t.date));
+  const ratio = doneTasks.length ? doneTasks.reduce((a, t) => a + spentMs(t), 0) / doneTasks.reduce((a, t) => a + t.estMin * 60000, 0) : null;
+  const ratioTxt = ratio == null ? '—' : `${ratio.toFixed(1)}×`;
+  const ratioSub = ratio == null ? 'finish tasks to see this'
+    : ratio > 1.1 ? `tasks take ${Math.round((ratio - 1) * 100)}% longer than planned`
+    : ratio < 0.9 ? `tasks take ${Math.round((1 - ratio) * 100)}% less than planned` : 'your estimates are spot on';
+
+  $('kpis').innerHTML = [
+    ['Focused this week', fmtShort(totalSpent), `${activeDays} active day${activeDays === 1 ? '' : 's'}`],
+    ['Daily average', fmtShort(activeDays ? totalSpent / activeDays : 0), 'on days you worked'],
+    ['Tasks done', `${doneTasks.length}`, `of ${rows.reduce((a, r) => a + r.total, 0)} planned`],
+    ['Estimate accuracy', ratioTxt, ratioSub],
+  ].map(([l, v, s]) => `<div class="card kpi"><div class="l">${l}</div><div class="v num">${v}</div><div class="s">${s}</div></div>`).join('');
+
+  renderChart(rows);
+
+  // all past days, newest first (this doubles as the chart's table view)
+  const byDay = {};
+  for (const t of state.tasks) (byDay[t.date] ||= []).push(t);
+  const all = Object.keys(byDay).sort().reverse();
+  $('days').innerHTML = all.length ? all.map(k => {
+    const list = byDay[k];
+    const est = list.reduce((a, t) => a + t.estMin * 60000, 0);
+    const spent = list.reduce((a, t) => a + spentMs(t), 0);
+    const done = list.filter(t => t.done).length;
+    const pct = est ? Math.min(100, spent / est * 100) : 0;
+    return `
+    <details class="card day">
+      <summary>
+        <span class="chev">${icon('chev')}</span>
+        <span class="d-date">${k === dayKey() ? 'Today' : dayLabel(k)}</span>
+        <span class="d-bar"><div class="bar" style="margin:0"><div style="width:${pct}%"></div></div></span>
+        <span class="muted num" style="font-size:14px">${fmtShort(spent)} <span class="faint">of ${fmtShort(est)}</span></span>
+        <span class="spacer"></span>
+        <span class="pill ${done === list.length ? 'good' : ''}">${done === list.length ? '✓ ' : ''}${done}/${list.length} done</span>
+      </summary>
+      <table>
+        <tr><th>Task</th><th class="n">Planned</th><th class="n">Spent</th><th class="n">Status</th></tr>
+        ${list.map(t => `<tr><td>${esc(t.title)}</td><td class="n num">${fmtShort(t.estMin * 60000)}</td><td class="n num">${fmtShort(spentMs(t))}</td>
+          <td class="n">${t.done ? '<span class="pill good">✓ Done</span>' : t.carried ? '<span class="pill">→ Carried</span>' : '<span class="pill">Open</span>'}</td></tr>`).join('')}
+      </table>
+    </details>`;
+  }).join('') : `<div class="card empty"><div class="big">📈</div><b>No history yet</b><div class="faint">Your days will show up here.</div></div>`;
+}
+
+function renderChart(rows) {
+  const W = 720, H = 230, L = 40, R = 8, T = 18, B = 28;
+  const maxMs = Math.max(3600000, ...rows.map(r => Math.max(r.planned, r.spent)));
+  const stepH = maxMs > 6 * 3600000 ? 2 : 1;                       // tick every 1h or 2h
+  const top = Math.ceil(maxMs / 3600000 / stepH) * stepH * 3600000;
+  const y = ms => T + (H - T - B) * (1 - ms / top);
+  const gw = (W - L - R) / rows.length, bw = Math.min(22, gw * 0.26), gap = 2;
+  const bar = (x, ms, color) => {
+    if (ms <= 0) return '';
+    const yy = y(ms), h = (H - B) - yy, rr = Math.min(4, h);
+    return `<path fill="${color}" d="M${x},${H - B} V${yy + rr} Q${x},${yy} ${x + rr},${yy} H${x + bw - rr} Q${x + bw},${yy} ${x + bw},${yy + rr} V${H - B} Z"/>`;
+  };
+  let svg = '';
+  for (let v = 0; v <= top; v += stepH * 3600000) {
+    svg += `<line class="grid-line" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>
+            <text class="axis-text num" x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${v / 3600000}h</text>`;
+  }
+  rows.forEach((r, i) => {
+    const cx = L + gw * i + gw / 2;
+    const x1 = cx - bw - gap / 2, x2 = cx + gap / 2;
+    svg += `<rect class="hit" x="${L + gw * i + 2}" y="${T}" width="${gw - 4}" height="${H - T - B}" rx="6" data-i="${i}"/>`;
+    svg += bar(x1, r.spent, 'var(--series-1)') + bar(x2, r.planned, 'var(--series-2)');
+    const isToday = i === rows.length - 1;
+    svg += `<text class="axis-text" x="${cx}" y="${H - 8}" text-anchor="middle" style="${isToday ? 'font-weight:600;fill:var(--text-2)' : ''}">${isToday ? 'Today' : dayLabel(r.k, { weekday: 'short' })}</text>`;
+    if (isToday) { // selective direct labels on the latest day only
+      if (r.spent) svg += `<text class="val num" x="${x1 + bw / 2}" y="${y(r.spent) - 6}" text-anchor="middle">${fmtShort(r.spent)}</text>`;
+      if (r.planned) svg += `<text class="val num" x="${x2 + bw / 2}" y="${y(r.planned) - 6}" text-anchor="middle">${fmtShort(r.planned)}</text>`;
+    }
+  });
+  $('chart').innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Focused vs planned time, last 7 days">${svg}</svg>`;
+
+  const tip = $('tip'), card = $('chart').parentElement;
+  $('chart').querySelectorAll('.hit').forEach(h => {
+    h.addEventListener('mousemove', e => {
+      const r = rows[+h.dataset.i];
+      tip.innerHTML = `<b>${dayLabel(r.k, { weekday: 'long', month: 'short', day: 'numeric' })}</b>
+        <div class="r"><span><i style="background:var(--series-1)"></i>Spent</span><span class="num">${fmtShort(r.spent)}</span></div>
+        <div class="r"><span><i style="background:var(--series-2)"></i>Planned</span><span class="num">${fmtShort(r.planned)}</span></div>
+        <div class="r"><span>Tasks done</span><span class="num">${r.done}/${r.total}</span></div>`;
+      tip.style.display = 'block';
+      const box = card.getBoundingClientRect();
+      let left = e.clientX - box.left + 14;
+      if (left + tip.offsetWidth > box.width - 8) left = e.clientX - box.left - tip.offsetWidth - 14;
+      tip.style.left = left + 'px';
+      tip.style.top = (e.clientY - box.top - 20) + 'px';
+    });
+    h.addEventListener('mouseleave', () => tip.style.display = 'none');
+  });
+}
+
+// ---------- alerts when estimate reached ----------
+function checkAlerts() {
+  const r = runningTask();
+  if (!r || r.alerted) return;
+  if (spentMs(r) >= r.estMin * 60000) {
+    r.alerted = true; save();
+    beep();
+    toast(`⏰ “${r.title}” reached its ${fmtShort(r.estMin * 60000)} estimate`);
+    if ('Notification' in window && Notification.permission === 'granted')
+      new Notification('Time is up', { body: `“${r.title}” reached its ${r.estMin} min estimate.` });
+  }
+}
+function beep() {
+  try {
+    const ctx = new AudioContext();
+    [0, 0.3, 0.6].forEach(t => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.2, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.25);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.25);
+    });
+  } catch {}
+}
+function paintNotify() {
+  if ('Notification' in window && Notification.permission === 'granted') $('notifyBtn').querySelector('span').textContent = 'Notifications on';
+}
+$('notifyBtn').onclick = () => { if ('Notification' in window) Notification.requestPermission().then(paintNotify); };
+paintNotify();
+
+// ---------- export / import ----------
+$('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `focus-backup-${dayKey()}.json`;
+  a.click();
+  toast('Backup downloaded');
+};
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (!Array.isArray(data.tasks)) throw new Error('bad file');
+    if (!confirm('Replace current data with the imported file?')) return;
+    state = data; save(); render(); toast('Data imported');
+  } catch { alert('Could not read that file.'); }
+  e.target.value = '';
+};
+
+// ---------- reopening after close ----------
+// If the app was closed while a timer was running, ask whether that away time counts.
+if (state.running && Date.now() - state.lastSeen > AWAY_PROMPT_MS) {
+  const t = runningTask();
+  const away = fmtShort(Date.now() - state.lastSeen);
+  if (t && !confirm(`“${t.title}” was still running when you closed Focus (${away} ago).\n\nOK = count that time (I kept working)\nCancel = stop the timer at when I closed it`)) {
+    stopRunning(state.lastSeen);
+  }
+}
+save();
+
+// sync across multiple open tabs
+window.addEventListener('storage', e => { if (e.key === KEY) { state = load(); render(); } });
+
+// re-render when the day rolls over, otherwise just update live numbers
+let renderedDay = dayKey();
+render();
+setInterval(() => {
+  save(); checkAlerts();
+  if (dayKey() !== renderedDay) { renderedDay = dayKey(); render(); } else tick();
+}, 1000);
+</script>
+</body>
+</html>
